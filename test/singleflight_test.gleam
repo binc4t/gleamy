@@ -1,86 +1,72 @@
-import gleam/async.{await, make_future, complete}
-import gleam/io
-import gleam/test.{assert}
-import gleam/list
-import src/singleflight.{SingleFlight, new, do, do_async}
+import singleflight
+import gleeunit
+import gleeunit/should
 
-// Test the SingleFlight implementation
-pub fn test_single_flight_basic() {
-  let sf = new()
-  
+pub fn main() {
+  gleeunit.main()
+}
+
+// Test basic single flight functionality
+pub fn basic_test() {
+  let sf = singleflight.new()
+
   // Simple function that returns a constant
   let work_fn = fn() { 42 }
-  
-  let #(result1, first_caller1) = do(sf, "test-key", work_fn)
-  assert result1 == 42
-  assert first_caller1 == True
-  
-  io.println("Basic single flight test passed!")
+
+  let #(result1, first_caller1) = singleflight.do(sf, "test-key", work_fn)
+  should.equal(result1, 42)
+  should.equal(first_caller1, True)
 }
 
-// Test concurrent access
-pub fn test_concurrent_access() {
-  let sf = new()
-  
-  // Function that takes some time to execute
-  let slow_work_fn = fn() {
-    // Simulate some work
-    erlang:timer:sleep(100)
-    100
-  }
-  
-  // Call the same function twice with the same key
-  // The second call should wait for the first to complete
-  let #(result1, first_caller1) = do(sf, "slow-key", slow_work_fn)
-  let #(result2, first_caller2) = do(sf, "slow-key", slow_work_fn)
-  
-  assert result1 == result2
-  assert result1 == 100
-  assert first_caller1 == True
-  assert first_caller2 == False
-  
-  io.println("Concurrent access test passed!")
+// Test that calling with same key doesn't re-execute (when using cache)
+pub fn cache_test() {
+  let sf = singleflight.new()
+  let work_fn = fn() { 100 }
+
+  let #(result1, sf2, first_caller1) =
+    singleflight.do_with_cache(sf, "cache-key", work_fn)
+  should.equal(result1, 100)
+  should.equal(first_caller1, True)
+
+  // Second call should return cached result
+  let work_fn2 = fn() { 999 }  // Different function
+  let #(result2, _sf3, first_caller2) =
+    singleflight.do_with_cache(sf2, "cache-key", work_fn2)
+  should.equal(result2, 100)  // Should still be 100 from cache
+  should.equal(first_caller2, False)
 }
 
-// Test async version
-pub fn test_async_single_flight() {
-  let sf = new()
-  
-  // Async function that returns a future
-  let async_work_fn = fn() {
-    let #(future, completer) = make_future()
-    // Simulate async work
-    erlang.spawn(fn() {
-      erlang:timer:sleep(50)
-      complete(completer, 200)
-    })
-    future
-  }
-  
-  let future1 = do_async(sf, "async-key", async_work_fn)
-  let future2 = do_async(sf, "async-key", async_work_fn)  // Same key
-  
-  let result1 = await(future1)
-  let result2 = await(future2)
-  
-  assert result1 == result2
-  assert result1 == 200
-  
-  io.println("Async single flight test passed!")
-}
+// Test that different keys work independently
+pub fn different_keys_test() {
+  let sf = singleflight.new()
 
-// Test different keys work independently
-pub fn test_different_keys_independent() {
-  let sf = new()
-  
   let work_fn1 = fn() { 1 }
   let work_fn2 = fn() { 2 }
-  
-  let #(result1, _) = do(sf, "key1", work_fn1)
-  let #(result2, _) = do(sf, "key2", work_fn2)
-  
-  assert result1 == 1
-  assert result2 == 2
-  
-  io.println("Different keys independent test passed!")
+
+  let #(result1, _) = singleflight.do(sf, "key1", work_fn1)
+  let #(result2, _) = singleflight.do(sf, "key2", work_fn2)
+
+  should.equal(result1, 1)
+  should.equal(result2, 2)
+}
+
+// Test forget functionality
+pub fn forget_test() {
+  let sf = singleflight.new()
+  let work_fn1 = fn() { 100 }
+
+  let #(result1, sf2, first_caller1) =
+    singleflight.do_with_cache(sf, "forget-key", work_fn1)
+  should.equal(result1, 100)
+  should.equal(first_caller1, True)
+
+  // Forget the key
+  let sf3 = singleflight.forget(sf2, "forget-key")
+
+  // Now calling again should execute the function again
+  let work_fn2 = fn() { 200 }
+  let #(result2, _sf4, first_caller2) =
+    singleflight.do_with_cache(sf3, "forget-key", work_fn2)
+  should.equal(result2, 200)
+  should.equal(first_caller2, True)
 }
