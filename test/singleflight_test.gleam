@@ -1,6 +1,6 @@
-import singleflight
 import gleeunit
 import gleeunit/should
+import singleflight
 
 pub fn main() {
   gleeunit.main()
@@ -29,10 +29,12 @@ pub fn cache_test() {
   should.equal(first_caller1, True)
 
   // Second call should return cached result
-  let work_fn2 = fn() { 999 }  // Different function
+  let work_fn2 = fn() { 999 }
+  // Different function
   let #(result2, _sf3, first_caller2) =
     singleflight.do_with_cache(sf2, "cache-key", work_fn2)
-  should.equal(result2, 100)  // Should still be 100 from cache
+  should.equal(result2, 100)
+  // Should still be 100 from cache
   should.equal(first_caller2, False)
 }
 

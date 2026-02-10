@@ -32,7 +32,7 @@ pub fn do(
   case dict.get(single_flight.ongoing, key) {
     // There's already a cached result for this key
     Ok(cached_result) -> #(cached_result, False)
-    
+
     // No cached result, execute the work function
     Error(_) -> {
       let result = work_fn()
@@ -51,7 +51,7 @@ pub fn do_with_cache(
   case dict.get(single_flight.ongoing, key) {
     // There's already a cached result for this key
     Ok(cached_result) -> #(cached_result, single_flight, False)
-    
+
     // No cached result, execute the work function and cache it
     Error(_) -> {
       let result = work_fn()
@@ -63,8 +63,9 @@ pub fn do_with_cache(
 }
 
 /// Forget a key, removing it from the cache
-pub fn forget(single_flight: SingleFlight(result), key: String) -> SingleFlight(
-  result,
-) {
+pub fn forget(
+  single_flight: SingleFlight(result),
+  key: String,
+) -> SingleFlight(result) {
   SingleFlight(ongoing: dict.delete(single_flight.ongoing, key))
 }
